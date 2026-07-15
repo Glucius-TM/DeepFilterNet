@@ -13,8 +13,8 @@
 
 | Componente | Antes | Ahora (modernizado) |
 |-----------|-------|---------------------|
-| **Python** | 3.8–3.11 (wheels) | **3.8–3.13** (una sola wheel `abi3` por plataforma) |
-| **NumPy** | `>=1.22,<2.0` | **1.x y 2.x** (`>=1.22`; en Python ≥3.10 el default es NumPy 2, ya que 3.8/3.9 no tienen wheels de NumPy 2) |
+| **Python** | 3.8–3.11 (wheels) | **3.10–3.13** (framework; la wheel `abi3` es técnicamente instalable en 3.8+) |
+| **NumPy** | `>=1.22,<2.0` | **1.x y 2.x** (`>=1.22`; el lock fija NumPy 2, pero NumPy 1.26 sigue siendo instalable en 3.10–3.12) |
 | **PyTorch** | pinneado a 2.1 (tareas `poe`) | **reciente** (probado con 2.5.x; ver nota torchaudio) |
 | **pyo3 / rust-numpy** | 0.20 (API `GIL Ref`) | **0.22** (API `Bound`) |
 | **HDF5 (entrenamiento)** | *fork* git no publicado | **`hdf5-metno`** (crates.io) |
@@ -97,7 +97,7 @@ El objetivo se alcanza mediante cambios acotados y verificados por separado:
   `pyo3`/`rust-numpy` 0.20 → 0.22 (API `Bound`) y levantado del tope `numpy<2.0`.
 - **PyTorch reciente:** capa de E/S de audio con *fallback* a `soundfile`.
 - **Distribución:** extensiones compiladas contra el ABI estable (`abi3-py38`) → una sola
-  wheel por plataforma válida en 3.8–3.13+.
+  wheel por plataforma (el framework requiere Python 3.10+).
 - **HDF5:** migración a `hdf5-metno`.
 
 Para el detalle técnico y las prioridades, ver [`auditoria-fase1.md`](auditoria-fase1.md).

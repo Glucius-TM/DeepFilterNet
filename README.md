@@ -5,7 +5,7 @@ A Low Complexity Speech Enhancement Framework for Full-Band Audio (48kHz) using 
 
 > **Modernized fork.** This fork keeps DeepFilterNet's technical strength while bringing
 > installation and maintenance up to date with the current Python ecosystem:
-> **Python 3.8–3.13**, **NumPy 1.x and 2.x**, recent **PyTorch**, a single **`abi3`** wheel
+> **Python 3.10–3.13**, **NumPy 1.x and 2.x**, recent **PyTorch**, a single **`abi3`** wheel
 > per platform, and a maintained HDF5 dependency. The public API is preserved
 > (`from df import enhance, init_df`). See the
 > [compatibility & installation guide](docs/compatibilidad-instalacion.md) and the

@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         # abi3 wheels are expected to install on any of these without a per-version build.
-        python: ["3.9", "3.12", "3.13"]
+        python: ["3.10", "3.12", "3.13"]
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     defaults:
       run:
@@ -63,5 +63,5 @@ jobs:
           python df/scripts/dnsmos_dns5.py eval-sample ../out/noisy_snr0_DeepFilterNet3.wav -t 3.4399468223627174 4.144957235621709 3.2074756563112996 3.7088842
       - uses: actions/upload-artifact@v4
         with:
-          name: enhanced-${{ runner.os }}
+          name: enhanced-${{ runner.os }}-py${{ matrix.python }}
           path: out/*wav

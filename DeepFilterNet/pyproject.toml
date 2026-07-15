@@ -25,15 +25,11 @@ include = [
 [tool.poetry.dependencies]
 deepfilterlib = { path = "../pyDF/" }
 deepfilterdataloader = { path = "../pyDF-data/", optional = true }
-python = ">=3.8,<4.0"
-# The code is compatible with both NumPy 1.x and 2.x. Python 3.8/3.9 have no
-# NumPy 2 wheels, so they stay on 1.x; on Python >=3.10 we default to NumPy 2.x
-# (which ships wheels through 3.13). This split keeps the lock installable across
-# the whole 3.8-3.13 range. Users can still pin NumPy 1.x on 3.10+ if needed.
-numpy = [
-    { version = ">=1.22,<2.0", python = "<3.10" },
-    { version = ">=2.0", python = ">=3.10" },
-]
+python = ">=3.10,<4.0"
+# Compatible with both NumPy 1.x and 2.x; the constraint stays broad so users may
+# pin either. The lock resolves to NumPy 2.x (the newest with wheels through 3.13);
+# NumPy 1.26.x remains installable on 3.10-3.12 for anyone who needs it.
+numpy = ">=1.22"
 loguru = ">=0.5"
 appdirs = "^1.4"
 requests = "^2.27"

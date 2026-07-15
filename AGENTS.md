@@ -16,13 +16,12 @@ Standard commands live in `README.md`, the per-crate `Cargo.toml`s, `DeepFilterN
 
 ### Environment specifics (modernized stack)
 
-- **Python 3.10–3.13 are supported** (validated on 3.12). 3.8/3.9 still work but have no
-  NumPy 2 wheels, so they stay on NumPy 1.x.
-- **NumPy 1.x and 2.x are both supported at runtime.** On Python ≥3.10 the default (and the
-  `poetry.lock` pin) is **NumPy 2.x**; on 3.8/3.9 it is NumPy 1.x. This split is encoded via
-  markers in `DeepFilterNet/pyproject.toml`, so `poetry install` stays reproducible across
-  the whole range. If you edit dependency constraints, re-run `poetry lock` and keep
-  `poetry check --lock` green.
+- **The framework requires Python 3.10–3.13** (validated on 3.12). The native `abi3` wheels
+  are technically importable on 3.8+, but the `DeepFilterNet` package itself pins `>=3.10`.
+- **NumPy 1.x and 2.x are both supported at runtime.** The `numpy` constraint is broad
+  (`>=1.22`), so either can be installed; the `poetry.lock` resolves to NumPy 2.x (the newest
+  with wheels through 3.13), while NumPy 1.26.x stays installable on 3.10-3.12. If you edit
+  dependency constraints, re-run `poetry lock` and keep `poetry check --lock` green.
 - **PyTorch ≥2.4** (installed via the `poe install-torch-*` tasks, CPU/CUDA index URLs).
 - The Python package is installed with `--no-root`; set `PYTHONPATH=$PWD/DeepFilterNet`
   (repo root: `PYTHONPATH=/workspace/DeepFilterNet`) when running `df/*.py` directly, or use

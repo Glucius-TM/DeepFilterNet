@@ -56,7 +56,12 @@ else:
 
 
 def _has_torchaudio_io() -> bool:
-    """Whether this torchaudio build still ships the classic info/load/save I/O API."""
+    """Whether torchaudio still exposes callable info/load/save entry points.
+
+    Note this is only a cheap first gate: on torchaudio >=2.9 these remain callable
+    but dispatch to a TorchCodec backend that may be absent. Callers therefore
+    attempt the torchaudio path and fall back to `soundfile` if it raises.
+    """
     return all(callable(getattr(ta, attr, None)) for attr in ("info", "load", "save"))
 
 
@@ -67,15 +72,19 @@ def _require_soundfile():
         return soundfile
     except ImportError as e:
         raise RuntimeError(
-            "Audio I/O requires either a torchaudio build with the classic load/save "
-            "backend, or the `soundfile` package. Install it via `pip install soundfile`."
+            "Audio I/O requires either a working torchaudio backend, or the `soundfile` "
+            "package. Install it via `pip install soundfile`."
         ) from e
 
 
-def _backend_info(file: str, format: Optional[str] = None) -> AudioMetaData:
-    if _has_torchaudio_io():
-        ikwargs = {} if format is None else {"format": format}
-        return ta.info(file, **ikwargs)
+def _warn_ta_fallback(op: str, err: Exception) -> None:
+    warn_once(
+        f"torchaudio.{op} is unavailable ({type(err).__name__}); "
+        "falling back to the soundfile backend."
+    )
+
+
+def _sf_info(file: str) -> AudioMetaData:
     sf = _require_soundfile()
     i = sf.info(file)
     bits = {"PCM_16": 16, "PCM_24": 24, "PCM_32": 32, "PCM_U8": 8, "FLOAT": 32, "DOUBLE": 64}
@@ -88,22 +97,9 @@ def _backend_info(file: str, format: Optional[str] = None) -> AudioMetaData:
     )
 
 
-def _backend_load(
-    file: str,
-    frame_offset: int = 0,
-    num_frames: int = -1,
-    channels_first: bool = True,
-    format: Optional[str] = None,
+def _sf_load(
+    file: str, frame_offset: int = 0, num_frames: int = -1, channels_first: bool = True
 ) -> Tuple[Tensor, int]:
-    if _has_torchaudio_io():
-        kwargs: Dict[str, Any] = {
-            "frame_offset": frame_offset,
-            "num_frames": num_frames,
-            "channels_first": channels_first,
-        }
-        if format is not None:
-            kwargs["format"] = format
-        return ta.load(file, **kwargs)
     sf = _require_soundfile()
     stop = None if num_frames is None or num_frames < 0 else frame_offset + num_frames
     data, sr = sf.read(file, start=frame_offset, stop=stop, dtype="float32", always_2d=True)
@@ -113,10 +109,7 @@ def _backend_load(
     return audio, int(sr)
 
 
-def _backend_save(file: str, audio: Tensor, sr: int) -> None:
-    if _has_torchaudio_io():
-        ta.save(file, audio, sr)
-        return
+def _sf_save(file: str, audio: Tensor, sr: int) -> None:
     sf = _require_soundfile()
     data = audio.detach().cpu()
     if data.ndim == 1:
@@ -129,6 +122,48 @@ def _backend_save(file: str, audio: Tensor, sr: int) -> None:
     else:
         subtype = None
     sf.write(file, data.transpose(0, 1).numpy(), int(sr), subtype=subtype)
+
+
+def _backend_info(file: str, format: Optional[str] = None) -> AudioMetaData:
+    if _has_torchaudio_io():
+        try:
+            ikwargs = {} if format is None else {"format": format}
+            return ta.info(file, **ikwargs)
+        except Exception as e:  # e.g. torchaudio >=2.9 without TorchCodec
+            _warn_ta_fallback("info", e)
+    return _sf_info(file)
+
+
+def _backend_load(
+    file: str,
+    frame_offset: int = 0,
+    num_frames: int = -1,
+    channels_first: bool = True,
+    format: Optional[str] = None,
+) -> Tuple[Tensor, int]:
+    if _has_torchaudio_io():
+        try:
+            kwargs: Dict[str, Any] = {
+                "frame_offset": frame_offset,
+                "num_frames": num_frames,
+                "channels_first": channels_first,
+            }
+            if format is not None:
+                kwargs["format"] = format
+            return ta.load(file, **kwargs)
+        except Exception as e:  # e.g. torchaudio >=2.9 without TorchCodec
+            _warn_ta_fallback("load", e)
+    return _sf_load(file, frame_offset, num_frames, channels_first)
+
+
+def _backend_save(file: str, audio: Tensor, sr: int) -> None:
+    if _has_torchaudio_io():
+        try:
+            ta.save(file, audio, sr)
+            return
+        except Exception as e:  # e.g. torchaudio >=2.9 without TorchCodec
+            _warn_ta_fallback("save", e)
+    _sf_save(file, audio, sr)
 
 
 def load_audio(
