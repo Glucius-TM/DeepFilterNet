@@ -22,10 +22,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: "ubuntu-latest"
-          # - os: "macos-latest"  # Fails to install hdf5 from git
-          - os: "windows-latest"
+        os: ["ubuntu-latest", "windows-latest"]
+        # - os: "macos-latest"  # Re-enable once hdf5-metno is validated on CI runners
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        numpy: ["1", "2"]
+        exclude:
+          # NumPy 1.x ships no wheels for Python 3.13
+          - python-version: "3.13"
+            numpy: "1"
     defaults:
       run:
         shell: bash
@@ -68,13 +72,13 @@ jobs:
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
       - name: Load cached Poetry installation
         if: matrix.os != 'windows-latest'
         uses: actions/cache@v4
         with:
           path: ~/.local
-          key: poetry-${{ runner.os }}-${{ matrix.python }}-1
+          key: poetry-${{ runner.os }}-${{ matrix.python-version }}-1
       - name: Bootstrap poetry
         run: |
           curl -sL https://install.python-poetry.org | python - -y
@@ -97,7 +101,7 @@ jobs:
             ~/.cache/DeepFilterNet
             .venv
             DeepFilterNet/.venv
-          key: venv-${{ runner.os }}-${{ matrix.python }}-${{ hashFiles('**/pyproject.toml') }}
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-np${{ matrix.numpy }}-${{ hashFiles('**/pyproject.toml') }}
 
       # Install DeepFilterNet and dependencies
       - name: Install runtime dependencies and DeepFilterNet
@@ -120,6 +124,18 @@ jobs:
           echo "Installing eval-utils"
           poetry run poe install-eval-utils
           poetry run poe install-dnsmos-utils
+
+      # Force the NumPy major version for this matrix leg (installed last so it
+      # wins over transitive pins) to exercise both NumPy 1.x and 2.x.
+      - name: Pin NumPy major version
+        working-directory: DeepFilterNet
+        run: |
+          if [ "${{ matrix.numpy }}" = "1" ]; then
+            poetry run pip install "numpy>=1.22,<2"
+          else
+            poetry run pip install "numpy>=2"
+          fi
+          poetry run python -c "import numpy; print('NumPy', numpy.__version__)"
 
       # Run tests
       - name: Run DF Test
