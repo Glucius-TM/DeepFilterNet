@@ -8,7 +8,7 @@ Rust<->Python boundary) and to give a rough real-time factor (RTF) for the DSP
 part alone (i.e. excluding the neural network / tract inference).
 
 Usage:
-    python scripts/bench_libdf.py [--seconds 10] [--sr 48000] [--iters 200]
+    python scripts/bench_libdf.py [--seconds 5] [--sr 48000] [--iters 200]
 
 It only needs `numpy` and the `libdf` wheel installed (no torch required).
 """

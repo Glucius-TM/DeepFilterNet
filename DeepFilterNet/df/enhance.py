@@ -266,8 +266,8 @@ async def enhance_async(
     Runs the blocking, compute-bound enhancement in a thread executor so it can be
     awaited from an asyncio event loop without blocking it. This is handy when
     serving DeepFilterNet from async web frameworks (FastAPI, aiohttp, ...).
-    PyTorch releases the GIL during computation, so work offloaded to threads can
-    genuinely run in parallel.
+    Many PyTorch tensor ops release the GIL during computation, so work offloaded
+    to threads can run in parallel rather than merely interleaving.
 
     The arguments and return value are identical to :func:`enhance`. Pass a custom
     ``executor`` (e.g. a bounded ``concurrent.futures.ThreadPoolExecutor``) to

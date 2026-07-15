@@ -94,7 +94,10 @@ impl DF {
         let out_steps = freq_steps * frame_size;
         let mut output = Array2::<f32>::zeros((channels, out_steps));
 
-        let mut input = unsafe { input.as_array_mut() };
+        // `DFState::synthesis` needs a mutable spec buffer, so operate on an owned
+        // copy instead of taking an unsound mutable view of the read-only input
+        // (which would mutate the caller's array through a `&` binding; see §6.1).
+        let mut input = input.as_array().to_owned();
         for (mut in_ch, mut out_ch) in
             input.axis_iter_mut(Axis(0)).zip(output.axis_iter_mut(Axis(0)))
         {

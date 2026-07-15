@@ -134,13 +134,16 @@ def _backend_save(file: str, audio: Tensor, sr: int) -> None:
 def load_audio(
     file: str, sr: Optional[int] = None, verbose=True, **kwargs
 ) -> Tuple[Tensor, AudioMetaData]:
-    """Loads an audio file using torchaudio.
+    """Loads an audio file.
+
+    Uses torchaudio's classic I/O backend when available and transparently falls back to
+    `soundfile` for recent torchaudio builds (>=2.9) that dropped it.
 
     Args:
         file (str): Path to an audio file.
         sr (int): Optionally resample audio to specified target sampling rate.
-        **kwargs: Passed to torchaudio.load(). Depends on the backend. The resample method
-            may be set via `method` which is passed to `resample()`.
+        **kwargs: Passed to the audio backend load call (e.g. `frame_offset`, `num_frames`).
+            The resample method may be set via `method` which is passed to `resample()`.
 
     Returns:
         audio (Tensor): Audio tensor of shape [C, T], if channels_first=True (default).
