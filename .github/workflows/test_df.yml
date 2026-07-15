@@ -27,11 +27,6 @@ jobs:
         # applies now that hdf5 lives only in the optional dataloader.
         os: ["ubuntu-latest", "windows-latest", "macos-latest"]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-        numpy: ["1", "2"]
-        exclude:
-          # NumPy 1.x ships no wheels for Python 3.13
-          - python-version: "3.13"
-            numpy: "1"
     defaults:
       run:
         shell: bash
@@ -103,7 +98,7 @@ jobs:
             ~/.cache/DeepFilterNet
             .venv
             DeepFilterNet/.venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-np${{ matrix.numpy }}-${{ hashFiles('**/pyproject.toml') }}
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock', '**/pyproject.toml') }}
 
       # Install DeepFilterNet and dependencies
       - name: Install runtime dependencies and DeepFilterNet
@@ -126,17 +121,6 @@ jobs:
           echo "Installing eval-utils"
           poetry run poe install-eval-utils
           poetry run poe install-dnsmos-utils
-
-      # Force the NumPy major version for this matrix leg (installed last so it
-      # wins over transitive pins) to exercise both NumPy 1.x and 2.x.
-      - name: Pin NumPy major version
-        working-directory: DeepFilterNet
-        run: |
-          if [ "${{ matrix.numpy }}" = "1" ]; then
-            poetry run pip install "numpy>=1.22,<2"
-          else
-            poetry run pip install "numpy>=2"
-          fi
           poetry run python -c "import numpy; print('NumPy', numpy.__version__)"
 
       # Run tests

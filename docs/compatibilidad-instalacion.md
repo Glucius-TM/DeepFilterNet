@@ -14,7 +14,7 @@
 | Componente | Antes | Ahora (modernizado) |
 |-----------|-------|---------------------|
 | **Python** | 3.8–3.11 (wheels) | **3.8–3.13** (una sola wheel `abi3` por plataforma) |
-| **NumPy** | `>=1.22,<2.0` | **1.x y 2.x** (`>=1.22`) |
+| **NumPy** | `>=1.22,<2.0` | **1.x y 2.x** (`>=1.22`; en Python ≥3.10 el default es NumPy 2, ya que 3.8/3.9 no tienen wheels de NumPy 2) |
 | **PyTorch** | pinneado a 2.1 (tareas `poe`) | **reciente** (probado con 2.5.x; ver nota torchaudio) |
 | **pyo3 / rust-numpy** | 0.20 (API `GIL Ref`) | **0.22** (API `Bound`) |
 | **HDF5 (entrenamiento)** | *fork* git no publicado | **`hdf5-metno`** (crates.io) |
