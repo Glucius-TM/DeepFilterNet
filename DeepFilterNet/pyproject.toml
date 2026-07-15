@@ -48,7 +48,7 @@ dnsmos-local = ["onnxruntime"]
 deepFilter = "df.enhance:run"
 deep-filter-py = "df.enhance:run"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 poethepoet = "^0.26"
 
 [tool.poe.tasks]
