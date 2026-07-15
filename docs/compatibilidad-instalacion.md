@@ -116,3 +116,31 @@ La API pública se mantiene intacta para facilitar la adopción:
   siendo opcionales (declarados explícitamente con `#[pyo3(signature = ...)]`).
 
 Doble licencia MIT/Apache-2.0, igual que el proyecto original.
+
+---
+
+## 7. Uso asíncrono
+
+Para servir DeepFilterNet desde aplicaciones `asyncio` (FastAPI, aiohttp, …) sin bloquear el
+bucle de eventos, existe `enhance_async`, que delega el cálculo (bloqueante) a un *executor*
+de hilos. PyTorch libera el GIL durante el cómputo, así que el trabajo offloadeado puede
+ejecutarse realmente en paralelo.
+
+```python
+import asyncio
+from df import enhance_async, init_df
+from df.enhance import load_audio
+
+model, df_state, _, _ = init_df()
+audio, _ = load_audio("noisy.wav", df_state.sr())
+enhanced = asyncio.run(enhance_async(model, df_state, audio))
+```
+
+Los argumentos y el valor de retorno son idénticos a `enhance`. Se puede pasar un `executor`
+propio (p. ej. un `ThreadPoolExecutor` acotado) para controlar el paralelismo.
+
+> **Concurrencia:** `model` y `df_state` tienen estado interno (el modelo reinicia su estado
+> oculto por llamada y `df_state` guarda los *buffers* STFT/ISTFT). No compartas el mismo par
+> `model`/`df_state` entre tareas que se ejecuten concurrentemente: usa una instancia por
+> tarea concurrente (o serializa el acceso). Encadenar `await` secuenciales con un par
+> compartido es correcto.

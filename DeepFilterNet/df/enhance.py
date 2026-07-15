@@ -1,8 +1,11 @@
 import argparse
+import asyncio
 import glob
 import os
 import time
 import warnings
+from concurrent.futures import Executor
+from functools import partial
 from typing import List, Optional, Tuple, Union
 
 import torch
@@ -248,6 +251,46 @@ def enhance(
         d = n_fft - hop
         audio = audio[:, d : orig_len + d]
     return audio
+
+
+async def enhance_async(
+    model: nn.Module,
+    df_state: DF,
+    audio: Tensor,
+    pad: bool = True,
+    atten_lim_db: Optional[float] = None,
+    executor: Optional[Executor] = None,
+) -> Tensor:
+    """Asynchronous wrapper around :func:`enhance`.
+
+    Runs the blocking, compute-bound enhancement in a thread executor so it can be
+    awaited from an asyncio event loop without blocking it. This is handy when
+    serving DeepFilterNet from async web frameworks (FastAPI, aiohttp, ...).
+    PyTorch releases the GIL during computation, so work offloaded to threads can
+    genuinely run in parallel.
+
+    The arguments and return value are identical to :func:`enhance`. Pass a custom
+    ``executor`` (e.g. a bounded ``concurrent.futures.ThreadPoolExecutor``) to
+    control the degree of parallelism; by default the running loop's default
+    executor is used.
+
+    Concurrency note:
+        Both ``model`` and ``df_state`` are stateful (the model resets its hidden
+        state per call and ``df_state`` holds STFT/ISTFT buffers). Do **not** share
+        the same ``model``/``df_state`` pair across enhancements that run
+        concurrently — give each concurrent task its own instances (or serialize
+        access). Awaiting sequentially with a shared pair is fine.
+
+    Example:
+        >>> import asyncio
+        >>> from df.enhance import init_df, enhance_async, load_audio
+        >>> model, df_state, _, _ = init_df()
+        >>> audio, _ = load_audio("noisy.wav", df_state.sr())
+        >>> enhanced = asyncio.run(enhance_async(model, df_state, audio))
+    """
+    loop = asyncio.get_running_loop()
+    fn = partial(enhance, model, df_state, audio, pad=pad, atten_lim_db=atten_lim_db)
+    return await loop.run_in_executor(executor, fn)
 
 
 def maybe_download_model(name: str = DEFAULT_MODEL) -> str:
