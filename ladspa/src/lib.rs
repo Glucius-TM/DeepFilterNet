@@ -75,13 +75,13 @@ fn log_format(buf: &mut env_logger::fmt::Formatter, record: &log::Record) -> io:
     } else {
         "".to_string()
     };
-    let level_style = buf.default_level_style(log::Level::Info);
+    let level_style = buf.default_level_style(record.level());
 
     writeln!(
         buf,
-        "{} | {} | {} {}",
+        "{} | {level_style}{}{level_style:#} | {} {}",
         ts,
-        level_style.value(record.level()),
+        record.level(),
         module,
         record.args()
     )
