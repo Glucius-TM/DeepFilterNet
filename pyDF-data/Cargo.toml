@@ -18,6 +18,7 @@ hdf5-static = ["deep_filter/hdf5-static"]
 deep_filter = { features = ["dataset", "logging", "vorbis", "flac"], path = "../libDF" }
 pyo3 = { version = "0.22", default-features = true, features = [
   "extension-module",
+  "abi3-py38",
 ] }
 numpy = "0.22"
 log = { version = "0.4", features = ["std"] }
