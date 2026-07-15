@@ -3,9 +3,10 @@ use std::fmt::Display;
 use std::io::{self, stdout, Write};
 use std::mem::MaybeUninit;
 use std::path::PathBuf;
+use std::ptr::addr_of;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc, Once,
+    Arc, Mutex, Once,
 };
 use std::thread::{self, sleep, JoinHandle};
 use std::time::Duration;
@@ -29,7 +30,11 @@ pub type SendControl = Sender<(DfControl, f32)>;
 pub type RecvControl = Receiver<(DfControl, f32)>;
 
 pub(crate) static INIT_LOGGER: Once = Once::new();
-pub(crate) static mut MODEL_PATH: Option<PathBuf> = None;
+pub(crate) static MODEL_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
+// `DfTract` is not `Send`/`Sync` (it holds `Rc`/`dyn OpState`), so it cannot live in a
+// `Mutex`/`OnceLock` static. Keep a `static mut` but only ever touch it through raw
+// pointers (`addr_of!`) to avoid `static_mut_refs`. It is written once during init and
+// afterwards only cloned (producing thread-local copies).
 static mut MODEL: Option<DfTract> = None;
 
 const SAMPLE_FORMAT: cpal::SampleFormat = cpal::SampleFormat::F32;
@@ -57,7 +62,7 @@ pub enum DfControl {
 /// Initialize DF model and returns sample rate, frame size, and number of frequency bins
 fn init_df(model_path: Option<PathBuf>, channels: usize) -> (usize, usize, usize) {
     unsafe {
-        if let Some(m) = MODEL.as_ref() {
+        if let Some(m) = (*addr_of!(MODEL)).as_ref() {
             if m.ch == channels {
                 return (m.sr, m.hop_size, m.n_freqs);
             }
@@ -76,8 +81,8 @@ fn init_df(model_path: Option<PathBuf>, channels: usize) -> (usize, usize, usize
     (sr, frame_size, freq_size)
 }
 
-unsafe fn get_frame_size() -> usize {
-    let df = MODEL.clone().unwrap();
+fn get_frame_size() -> usize {
+    let df = unsafe { (*addr_of!(MODEL)).clone() }.unwrap();
     df.hop_size
 }
 
@@ -137,15 +142,14 @@ fn get_stream_config(
     for c in configs.iter() {
         if sr >= c.min_sample_rate() && sr <= c.max_sample_rate() {
             let mut c: StreamConfig = (*c).with_sample_rate(sr).into();
-            c.buffer_size = BufferSize::Fixed(unsafe { get_frame_size() } as u32);
+            c.buffer_size = BufferSize::Fixed(get_frame_size() as u32);
             return Some(c);
         }
     }
 
     if let Some(c) = configs.first() {
         let mut c: StreamConfig = (*c).with_max_sample_rate().into();
-        c.buffer_size =
-            BufferSize::Fixed(unsafe { get_frame_size() } as u32 * c.sample_rate.0 / sample_rate);
+        c.buffer_size = BufferSize::Fixed(get_frame_size() as u32 * c.sample_rate.0 / sample_rate);
         log::warn!("Using best matching config {:?}", c);
         return Some(c);
     }
@@ -329,7 +333,7 @@ fn get_worker_fn(
         (None, None, None)
     };
     move || {
-        let mut df = unsafe { MODEL.clone().unwrap() };
+        let mut df = unsafe { (*addr_of!(MODEL)).clone() }.unwrap();
         debug_assert_eq!(df.ch, 1); // Processing for more channels are not implemented yet
         let mut inframe = Array2::zeros((df.ch, df.hop_size));
         let mut outframe = inframe.clone();
@@ -538,9 +542,10 @@ pub fn main() -> Result<()> {
 
     let (lsnr_prod, mut lsnr_cons) = unbounded();
     let mut model_path = env::var("DF_MODEL").ok().map(PathBuf::from);
-    unsafe {
-        if model_path.is_none() && MODEL_PATH.is_some() {
-            model_path = MODEL_PATH.clone()
+    {
+        let mp = MODEL_PATH.lock().unwrap();
+        if model_path.is_none() && mp.is_some() {
+            model_path = mp.clone();
         }
     }
     if let Some(p) = model_path.as_ref() {
