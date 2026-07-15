@@ -52,12 +52,6 @@ jobs:
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
-      # Soundfile backend for torchaudio
-      - name: Set Extra Dependency Windows
-        if: matrix.os == 'windows-latest'
-        run: |
-          echo "EXTRA=-E soundfile" >> $GITHUB_ENV
-
       # Rust installation
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -111,7 +105,7 @@ jobs:
         working-directory: DeepFilterNet
         run: |
           poetry --version
-          poetry install -vvv --no-interaction -E eval -E dnsmos-local ${{env.EXTRA}}
+          poetry install -vvv --no-interaction -E eval -E dnsmos-local
           echo "Installing pytorch"
           poetry run poe install-torch-cpu
           poetry run poe install-dnsmos-utils
@@ -120,7 +114,7 @@ jobs:
         working-directory: DeepFilterNet
         run: |
           poetry --version
-          poetry install -vvv --no-interaction -E dnsmos-local ${{env.EXTRA}}
+          poetry install -vvv --no-interaction -E dnsmos-local
           echo "Installing pytorch"
           poetry run poe install-torch-cpu
           echo "Installing eval-utils"
