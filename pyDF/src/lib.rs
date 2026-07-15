@@ -263,18 +263,14 @@ fn libdf(m: &Bound<'_, PyModule>) -> PyResult<()> {
     ) -> PyResult<Bound<'py, PyArray3<f32>>> {
         // Input shape [C, T, F]
         // State shape [C, F]
-        let mut erb = unsafe { erb.as_array_mut() };
-        if let Some(state) = state {
-            transforms::erb_norm(
-                &mut erb.view_mut(),
-                Some(unsafe { state.as_array_mut() }.to_owned()),
-                alpha,
-            )
-            .to_py_err()?;
-        } else {
-            transforms::erb_norm(&mut erb.view_mut(), None, alpha).to_py_err()?;
-        };
-        Ok(erb.into_owned().into_pyarray_bound(py))
+        // Operate on an owned copy and move it out: this keeps the same single
+        // allocation the previous `into_owned()` return required, while avoiding
+        // the unsound `as_array_mut()` aliasing that mutated the caller's
+        // read-only input in place (see audit §6.1).
+        let mut erb = erb.as_array().to_owned();
+        let state = state.map(|s| s.as_array().to_owned());
+        transforms::erb_norm(&mut erb.view_mut(), state, alpha).to_py_err()?;
+        Ok(erb.into_pyarray_bound(py))
     }
 
     #[pyfn(m)]
@@ -288,16 +284,8 @@ fn libdf(m: &Bound<'_, PyModule>) -> PyResult<()> {
         // Input shape [C, T, F]
         // State shape [C, F]
         let mut spec = spec.as_array().to_owned();
-        if let Some(state) = state {
-            transforms::unit_norm(
-                &mut spec.view_mut(),
-                Some(unsafe { state.as_array_mut() }.to_owned()),
-                alpha,
-            )
-            .to_py_err()?;
-        } else {
-            transforms::unit_norm(&mut spec.view_mut(), None, alpha).to_py_err()?;
-        };
+        let state = state.map(|s| s.as_array().to_owned());
+        transforms::unit_norm(&mut spec.view_mut(), state, alpha).to_py_err()?;
         Ok(spec.into_pyarray_bound(py))
     }
 
