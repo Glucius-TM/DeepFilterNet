@@ -3,6 +3,14 @@ A Low Complexity Speech Enhancement Framework for Full-Band Audio (48kHz) using 
 
 ![deepfilternet3](https://user-images.githubusercontent.com/16517898/225623209-a54fea75-ca00-404c-a394-c91d2d1146d2.svg)
 
+> **Modernized fork.** This fork keeps DeepFilterNet's technical strength while bringing
+> installation and maintenance up to date with the current Python ecosystem:
+> **Python 3.8–3.13**, **NumPy 1.x and 2.x**, recent **PyTorch**, a single **`abi3`** wheel
+> per platform, and a maintained HDF5 dependency. The public API is preserved
+> (`from df import enhance, init_df`). See the
+> [compatibility & installation guide](docs/compatibilidad-instalacion.md) and the
+> [technical audit](docs/auditoria-fase1.md) for details.
+
 For PipeWire integration as a virtual noise suppression microphone look [here](https://github.com/Rikorose/DeepFilterNet/blob/main/ladspa/README.md).
 
 ### Demo
@@ -86,8 +94,8 @@ This framework supports Linux, MacOS and Windows. Training is only tested under 
 
 Install the DeepFilterNet Python wheel via pip:
 ```bash
-# Install cpu/cuda pytorch (>=1.9) dependency from pytorch.org, e.g.:
-pip install torch torchaudio -f https://download.pytorch.org/whl/cpu/torch_stable.html
+# Install cpu/cuda pytorch dependency from pytorch.org, e.g. for CPU:
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 # Install DeepFilterNet
 pip install deepfilternet
 # Or install DeepFilterNet including data loading functionality for training (Linux only)
@@ -109,8 +117,8 @@ Installation of python dependencies and libDF:
 ```bash
 cd path/to/DeepFilterNet/  # cd into repository
 # Recommended: Install or activate a python env
-# Mandatory: Install cpu/cuda pytorch (>=1.8) dependency from pytorch.org, e.g.:
-pip install torch torchaudio -f https://download.pytorch.org/whl/cpu/torch_stable.html
+# Mandatory: Install cpu/cuda pytorch dependency from pytorch.org, e.g. for CPU:
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 # Install build dependencies used to compile libdf and DeepFilterNet python wheels
 pip install maturin poetry
 

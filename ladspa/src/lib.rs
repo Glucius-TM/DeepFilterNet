@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt;
 use std::io::{self, Write};
+use std::ptr::addr_of;
 use std::sync::{
     mpsc::{sync_channel, Receiver, SyncSender},
     Arc, Mutex, Once,
@@ -66,6 +67,9 @@ struct DfPlugin {
 
 const ID_MONO: u64 = 7843795;
 const ID_STEREO: u64 = 7843796;
+// Written once during `init_df` and only read afterwards. Access it exclusively
+// through raw pointers (`addr_of!`) to avoid `static_mut_refs` (shared references
+// to a `static mut`), mirroring the approach used in the desktop demo.
 static mut MODEL: Option<DfTract> = None;
 
 fn log_format(buf: &mut env_logger::fmt::Formatter, record: &log::Record) -> io::Result<()> {
@@ -75,13 +79,13 @@ fn log_format(buf: &mut env_logger::fmt::Formatter, record: &log::Record) -> io:
     } else {
         "".to_string()
     };
-    let level_style = buf.default_level_style(log::Level::Info);
+    let level_style = buf.default_level_style(record.level());
 
     writeln!(
         buf,
-        "{} | {} | {} {}",
+        "{} | {level_style}{}{level_style:#} | {} {}",
         ts,
-        level_style.value(record.level()),
+        record.level(),
         module,
         record.args()
     )
@@ -111,7 +115,7 @@ fn get_worker_fn(
     id: String,
 ) -> impl FnMut() {
     move || {
-        let mut df = unsafe { MODEL.clone().unwrap() };
+        let mut df = unsafe { (*addr_of!(MODEL)).clone() }.unwrap();
         let mut inframe = Array2::zeros((df.ch, df.hop_size));
         let mut outframe = Array2::zeros((df.ch, df.hop_size));
         let t_audio_ms = df.hop_size as f32 / df.sr as f32 * 1000.;
@@ -172,7 +176,7 @@ fn get_worker_fn(
 /// Initialize DF model and returns sample rate and frame size
 fn init_df(channels: usize) -> (usize, usize) {
     unsafe {
-        if let Some(m) = MODEL.as_ref() {
+        if let Some(m) = (*addr_of!(MODEL)).as_ref() {
             if m.ch == channels {
                 return (m.sr, m.hop_size);
             }

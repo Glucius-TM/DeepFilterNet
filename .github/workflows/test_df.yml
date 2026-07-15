@@ -22,10 +22,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: "ubuntu-latest"
-          # - os: "macos-latest"  # Fails to install hdf5 from git
-          - os: "windows-latest"
+        # macOS is back: the inference test path only builds `deepfilterlib`
+        # (no HDF5), so the old "hdf5 from git fails on macOS" blocker no longer
+        # applies now that hdf5 lives only in the optional dataloader.
+        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     defaults:
       run:
         shell: bash
@@ -52,12 +53,6 @@ jobs:
         uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
-      # Soundfile backend for torchaudio
-      - name: Set Extra Dependency Windows
-        if: matrix.os == 'windows-latest'
-        run: |
-          echo "EXTRA=-E soundfile" >> $GITHUB_ENV
-
       # Rust installation
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -74,13 +69,13 @@ jobs:
         with:
           cache: 'pip'
           cache-dependency-path: '**/pyproject.toml'
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
       - name: Load cached Poetry installation
         if: matrix.os != 'windows-latest'
         uses: actions/cache@v4
         with:
           path: ~/.local
-          key: poetry-${{ runner.os }}-${{ matrix.python }}-1
+          key: poetry-${{ runner.os }}-${{ matrix.python-version }}-1
       - name: Bootstrap poetry
         run: |
           curl -sL https://install.python-poetry.org | python - -y
@@ -103,7 +98,7 @@ jobs:
             ~/.cache/DeepFilterNet
             .venv
             DeepFilterNet/.venv
-          key: venv-${{ runner.os }}-${{ matrix.python }}-${{ hashFiles('**/pyproject.toml') }}
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock', '**/pyproject.toml') }}
 
       # Install DeepFilterNet and dependencies
       - name: Install runtime dependencies and DeepFilterNet
@@ -111,7 +106,7 @@ jobs:
         working-directory: DeepFilterNet
         run: |
           poetry --version
-          poetry install -vvv --no-interaction -E eval -E dnsmos-local ${{env.EXTRA}}
+          poetry install -vvv --no-interaction -E eval -E dnsmos-local
           echo "Installing pytorch"
           poetry run poe install-torch-cpu
           poetry run poe install-dnsmos-utils
@@ -120,12 +115,13 @@ jobs:
         working-directory: DeepFilterNet
         run: |
           poetry --version
-          poetry install -vvv --no-interaction -E dnsmos-local ${{env.EXTRA}}
+          poetry install -vvv --no-interaction -E dnsmos-local
           echo "Installing pytorch"
           poetry run poe install-torch-cpu
           echo "Installing eval-utils"
           poetry run poe install-eval-utils
           poetry run poe install-dnsmos-utils
+          poetry run python -c "import numpy; print('NumPy', numpy.__version__)"
 
       # Run tests
       - name: Run DF Test

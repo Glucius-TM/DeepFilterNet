@@ -1,12 +1,19 @@
+// The pyo3 0.22 `#[pymethods]`/`#[pyfn]` macros emit a `PyErr` -> `PyErr`
+// conversion on each exposed function's return type that recent clippy flags as
+// `useless_conversion`. It comes from generated code, not ours, so allow it at
+// the crate level to keep clippy `-D warnings` enabled for this crate in CI.
+#![allow(clippy::useless_conversion)]
+
 use df::transforms::{
     self, erb_inv_with_output as erb_inv_transform, erb_with_output as erb_transform,
     TransformError,
 };
 use df::{Complex32, DFState, UNIT_NORM_INIT};
 use ndarray::{Array1, Array2, Array3, Array4, ArrayD, ArrayView4, Axis, ShapeError};
+use numpy::prelude::*;
 use numpy::{
-    IntoPyArray, PyArray1, PyArray2, PyArray3, PyArrayDyn, PyReadonlyArray1, PyReadonlyArray2,
-    PyReadonlyArray3, PyReadonlyArrayDyn,
+    PyArray1, PyArray2, PyArray3, PyArrayDyn, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray3,
+    PyReadonlyArrayDyn,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -20,6 +27,7 @@ struct DF {
 #[allow(clippy::upper_case_acronyms)]
 impl DF {
     #[new]
+    #[pyo3(signature = (sr, fft_size, hop_size, nb_bands=None, min_nb_erb_freqs=None))]
     fn new(
         sr: usize,
         fft_size: usize,
@@ -38,12 +46,13 @@ impl DF {
         }
     }
 
+    #[pyo3(signature = (input, reset=None))]
     fn analysis<'py>(
         &mut self,
         py: Python<'py>,
         input: PyReadonlyArray2<'py, f32>,
         reset: Option<bool>,
-    ) -> PyResult<&'py PyArray3<Complex32>> {
+    ) -> PyResult<Bound<'py, PyArray3<Complex32>>> {
         let frame_size = self.state.frame_size;
         let freq_size = self.state.freq_size;
         let channels = input.shape()[0];
@@ -64,19 +73,20 @@ impl DF {
             })?;
             let in_chunks = in_slice.chunks_exact(frame_size);
             let out_chunks = out_slice.chunks_exact_mut(freq_size);
-            for (ichunk, ochunk) in in_chunks.into_iter().zip(out_chunks.into_iter()) {
+            for (ichunk, ochunk) in in_chunks.zip(out_chunks) {
                 self.state.analysis(ichunk, ochunk)
             }
         }
-        Ok(output.into_pyarray(py))
+        Ok(output.into_pyarray_bound(py))
     }
 
+    #[pyo3(signature = (input, reset=None))]
     fn synthesis<'py>(
         &mut self,
         py: Python<'py>,
         input: PyReadonlyArray3<Complex32>,
         reset: Option<bool>,
-    ) -> PyResult<&'py PyArray2<f32>> {
+    ) -> PyResult<Bound<'py, PyArray2<f32>>> {
         let frame_size = self.state.frame_size;
         let freq_size = self.state.freq_size;
         let channels = input.shape()[0];
@@ -84,7 +94,10 @@ impl DF {
         let out_steps = freq_steps * frame_size;
         let mut output = Array2::<f32>::zeros((channels, out_steps));
 
-        let mut input = unsafe { input.as_array_mut() };
+        // `DFState::synthesis` needs a mutable spec buffer, so operate on an owned
+        // copy instead of taking an unsound mutable view of the read-only input
+        // (which would mutate the caller's array through a `&` binding; see §6.1).
+        let mut input = input.as_array().to_owned();
         for (mut in_ch, mut out_ch) in
             input.axis_iter_mut(Axis(0)).zip(output.axis_iter_mut(Axis(0)))
         {
@@ -99,19 +112,19 @@ impl DF {
             })?;
             let in_chunks = in_slice.chunks_exact_mut(freq_size);
             let out_chunks = out_slice.chunks_exact_mut(frame_size);
-            for (ichunk, ochunk) in in_chunks.into_iter().zip(out_chunks.into_iter()) {
+            for (ichunk, ochunk) in in_chunks.zip(out_chunks) {
                 self.state.synthesis(ichunk, ochunk);
             }
         }
-        Ok(output.into_pyarray(py))
+        Ok(output.into_pyarray_bound(py))
     }
 
-    fn erb_widths<'py>(&self, py: Python<'py>) -> PyResult<&'py PyArray1<usize>> {
-        Ok(self.state.erb.clone().into_pyarray(py))
+    fn erb_widths<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<usize>>> {
+        Ok(self.state.erb.clone().into_pyarray_bound(py))
     }
 
-    fn fft_window<'py>(&self, py: Python<'py>) -> PyResult<&'py PyArray1<f32>> {
-        Ok(self.state.window.clone().into_pyarray(py))
+    fn fft_window<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f32>>> {
+        Ok(self.state.window.clone().into_pyarray_bound(py))
     }
 
     fn sr(&self) -> usize {
@@ -136,17 +149,17 @@ impl DF {
 }
 
 #[pymodule]
-fn libdf(_py: Python, m: &PyModule) -> PyResult<()> {
+fn libdf(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DF>()?;
 
     #[pyfn(m)]
-    #[pyo3(name = "erb")]
+    #[pyo3(name = "erb", signature = (input, erb_fb, db=None))]
     fn erb<'py>(
         py: Python<'py>,
         input: PyReadonlyArrayDyn<Complex32>,
         erb_fb: PyReadonlyArray1<usize>,
         db: Option<bool>,
-    ) -> PyResult<&'py PyArrayDyn<f32>> {
+    ) -> PyResult<Bound<'py, PyArrayDyn<f32>>> {
         // Input shape [B, C, T, F]
         let indim = input.ndim();
         let input = input.as_array();
@@ -188,7 +201,7 @@ fn libdf(_py: Python, m: &PyModule) -> PyResult<()> {
                 .to_py_err()?,
             _ => output.into_dimensionality().to_py_err()?,
         };
-        Ok(output.into_pyarray(py))
+        Ok(output.into_pyarray_bound(py))
     }
 
     #[pyfn(m)]
@@ -197,7 +210,7 @@ fn libdf(_py: Python, m: &PyModule) -> PyResult<()> {
         py: Python<'py>,
         input: PyReadonlyArrayDyn<f32>,
         erb_fb: PyReadonlyArray1<usize>,
-    ) -> PyResult<&'py PyArrayDyn<f32>> {
+    ) -> PyResult<Bound<'py, PyArrayDyn<f32>>> {
         // Input shape [B, C, T, E]
         let indim = input.ndim();
         let input = input.as_array();
@@ -246,64 +259,55 @@ fn libdf(_py: Python, m: &PyModule) -> PyResult<()> {
                 .to_py_err()?,
             _ => output.into_dimensionality().to_py_err()?,
         };
-        Ok(output.into_pyarray(py))
+        Ok(output.into_pyarray_bound(py))
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "erb_norm")]
+    #[pyo3(name = "erb_norm", signature = (erb, alpha, state=None))]
     fn erb_norm<'py>(
         py: Python<'py>,
         erb: PyReadonlyArray3<f32>,
         alpha: f32,
         state: Option<PyReadonlyArray2<f32>>,
-    ) -> PyResult<&'py PyArray3<f32>> {
+    ) -> PyResult<Bound<'py, PyArray3<f32>>> {
         // Input shape [C, T, F]
         // State shape [C, F]
-        let mut erb = unsafe { erb.as_array_mut() };
-        if let Some(state) = state {
-            transforms::erb_norm(
-                &mut erb.view_mut(),
-                Some(unsafe { state.as_array_mut() }.to_owned()),
-                alpha,
-            )
-            .to_py_err()?;
-        } else {
-            transforms::erb_norm(&mut erb.view_mut(), None, alpha).to_py_err()?;
-        };
-        Ok(erb.into_owned().into_pyarray(py))
+        // Operate on an owned copy and move it out: this keeps the same single
+        // allocation the previous `into_owned()` return required, while avoiding
+        // the unsound `as_array_mut()` aliasing that mutated the caller's
+        // read-only input in place (see audit §6.1).
+        let mut erb = erb.as_array().to_owned();
+        let state = state.map(|s| s.as_array().to_owned());
+        transforms::erb_norm(&mut erb.view_mut(), state, alpha).to_py_err()?;
+        Ok(erb.into_pyarray_bound(py))
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "unit_norm")]
+    #[pyo3(name = "unit_norm", signature = (spec, alpha, state=None))]
     fn unit_norm<'py>(
         py: Python<'py>,
         spec: PyReadonlyArray3<Complex32>,
         alpha: f32,
         state: Option<PyReadonlyArray2<f32>>,
-    ) -> PyResult<&'py PyArray3<Complex32>> {
+    ) -> PyResult<Bound<'py, PyArray3<Complex32>>> {
         // Input shape [C, T, F]
         // State shape [C, F]
         let mut spec = spec.as_array().to_owned();
-        if let Some(state) = state {
-            transforms::unit_norm(
-                &mut spec.view_mut(),
-                Some(unsafe { state.as_array_mut() }.to_owned()),
-                alpha,
-            )
-            .to_py_err()?;
-        } else {
-            transforms::unit_norm(&mut spec.view_mut(), None, alpha).to_py_err()?;
-        };
-        Ok(spec.into_pyarray(py))
+        let state = state.map(|s| s.as_array().to_owned());
+        transforms::unit_norm(&mut spec.view_mut(), state, alpha).to_py_err()?;
+        Ok(spec.into_pyarray_bound(py))
     }
 
     #[pyfn(m)]
     #[pyo3(name = "unit_norm_init")]
-    fn unit_norm_init(py: Python, num_freq_bins: usize) -> PyResult<&PyArray2<f32>> {
+    fn unit_norm_init<'py>(
+        py: Python<'py>,
+        num_freq_bins: usize,
+    ) -> PyResult<Bound<'py, PyArray2<f32>>> {
         let arr = Array1::<f32>::linspace(UNIT_NORM_INIT[0], UNIT_NORM_INIT[1], num_freq_bins)
             .into_shape([1, num_freq_bins])
             .to_py_err()?;
-        Ok(arr.into_pyarray(py))
+        Ok(arr.into_pyarray_bound(py))
     }
 
     Ok(())
