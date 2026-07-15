@@ -53,19 +53,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The native extensions are built against the stable ABI (pyo3 abi3-py38),
+        # so a single wheel per platform works on CPython 3.8+ (incl. 3.12/3.13).
+        # We therefore only build against one interpreter instead of one per version.
         python:
-          - version: "3.8"
-            tag: "38"
-            abi: cp38-cp38
-          - version: "3.9"
-            tag: "39"
-            abi: cp39-cp39
           - version: "3.10"
             tag: "310"
             abi: cp310-cp310
-          - version: "3.11"
-            tag: "311"
-            abi: cp311-cp311
         df_wheel: ["pyDF", "pyDF-data"]
         build: [linux-x86, linux-arm-aarch64, macos-x86, macos-aarch64, win-msvc]
         include:
@@ -251,11 +245,7 @@ jobs:
         rust: [stable]
         manylinux: [2014]
         python:
-          # CPython
-          - version: "3.8"
-            abi: cp38-cp38
-          - version: "3.9"
-            abi: cp39-cp39
+          # A single abi3 (stable ABI) wheel covers CPython 3.8+
           - version: "3.10"
             abi: cp310-cp310
         platform:
@@ -281,7 +271,7 @@ jobs:
         run: |
           sudo python3 -m pip install maturin
           maturin build --release -o dist \
-            -i python3.9 \
+            -i python${{ matrix.python.version }} \
             --target ${{ matrix.platform.target }} \
             --manylinux ${{ matrix.manylinux }} \
             -m pyDF/Cargo.toml

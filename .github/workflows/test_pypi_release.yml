@@ -16,7 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.9"]
+        # abi3 wheels are expected to install on any of these without a per-version build.
+        python: ["3.9", "3.12", "3.13"]
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     defaults:
       run:
