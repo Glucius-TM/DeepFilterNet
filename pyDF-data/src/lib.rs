@@ -1,3 +1,9 @@
+// The pyo3 0.22 `#[pymethods]`/`#[pyfn]` macros emit a `PyErr` -> `PyErr`
+// conversion on each exposed function's return type that recent clippy flags as
+// `useless_conversion`. It comes from generated code, not ours, so allow it at
+// the crate level to keep clippy `-D warnings` enabled for this crate in CI.
+#![allow(clippy::useless_conversion)]
+
 use std::str::FromStr;
 use std::thread;
 use std::time::Instant;

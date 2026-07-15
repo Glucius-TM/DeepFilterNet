@@ -1,3 +1,9 @@
+// The pyo3 0.22 `#[pymethods]`/`#[pyfn]` macros emit a `PyErr` -> `PyErr`
+// conversion on each exposed function's return type that recent clippy flags as
+// `useless_conversion`. It comes from generated code, not ours, so allow it at
+// the crate level to keep clippy `-D warnings` enabled for this crate in CI.
+#![allow(clippy::useless_conversion)]
+
 use df::transforms::{
     self, erb_inv_with_output as erb_inv_transform, erb_with_output as erb_transform,
     TransformError,
@@ -67,7 +73,7 @@ impl DF {
             })?;
             let in_chunks = in_slice.chunks_exact(frame_size);
             let out_chunks = out_slice.chunks_exact_mut(freq_size);
-            for (ichunk, ochunk) in in_chunks.into_iter().zip(out_chunks.into_iter()) {
+            for (ichunk, ochunk) in in_chunks.zip(out_chunks) {
                 self.state.analysis(ichunk, ochunk)
             }
         }
@@ -103,7 +109,7 @@ impl DF {
             })?;
             let in_chunks = in_slice.chunks_exact_mut(freq_size);
             let out_chunks = out_slice.chunks_exact_mut(frame_size);
-            for (ichunk, ochunk) in in_chunks.into_iter().zip(out_chunks.into_iter()) {
+            for (ichunk, ochunk) in in_chunks.zip(out_chunks) {
                 self.state.synthesis(ichunk, ochunk);
             }
         }
